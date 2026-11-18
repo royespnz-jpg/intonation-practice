@@ -1,0 +1,16 @@
+{
+  "name": "intonation-practice",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An intonation practice: two timed readings aloud of 15 sentences, each with the name of its intonation pattern (50 seconds to prepare, 1 minute to read), and a written part where students write the pattern of 10 sentences with pitch numbers; with automatic recording and the teacher's Google Apps Script.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test",
+    "gs": "node scripts/exam-gs.mjs && node scripts/split-gs.mjs",
+    "version": "node scripts/version.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

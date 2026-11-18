@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+
+# The intonation patterns (the answers of Part 3): private, only in the
+# teacher's Apps Script.
+key/
+google-apps-script/private/
+
+# The teacher's source material is never published.
+*.pdf
