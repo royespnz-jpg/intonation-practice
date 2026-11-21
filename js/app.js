@@ -1,9 +1,9 @@
-import { READINGS, WRITTEN, RESPONSES, INTRO, WRITTEN_DIRECTIONS, READING_POINTS, WRITTEN_POINTS, TOTAL_POINTS, PREP, RESPONSE, WRITE, duration, directions, buildTimeline, timedSeconds, resumeIndex } from './format.js?v=202611180437';
-import { clockHtml, runClock, idleClock, fmt } from './clock.js?v=202611180437';
-import { unlockAudio, beep, speak, stopSpeaking, openMicrophone, closeMicrophone, levelMeter, startRecording } from './audio.js?v=202611180437';
-import { scriptUrl, saveScriptUrl, isScriptUrl, ping, post, report, enqueue, onUpload, pendingUploads, resumeUploads } from './api.js?v=202611180437';
-import { saveRecording, allRecordings } from './store.js?v=202611180437';
-import { TEACHER_CODE, SCRIPT_VERSION, SCRIPT_APP } from './config.js?v=202611180437';
+import { READINGS, WRITTEN, RESPONSES, INTRO, WRITTEN_DIRECTIONS, READING_POINTS, WRITTEN_POINTS, TOTAL_POINTS, PREP, RESPONSE, WRITE, duration, directions, buildTimeline, timedSeconds, resumeIndex } from './format.js?v=202611210335';
+import { clockHtml, runClock, idleClock, fmt } from './clock.js?v=202611210335';
+import { unlockAudio, beep, speak, stopSpeaking, openMicrophone, closeMicrophone, levelMeter, startRecording } from './audio.js?v=202611210335';
+import { scriptUrl, saveScriptUrl, isScriptUrl, ping, post, report, enqueue, onUpload, pendingUploads, resumeUploads } from './api.js?v=202611210335';
+import { saveRecording, allRecordings } from './store.js?v=202611210335';
+import { TEACHER_CODE, SCRIPT_VERSION, SCRIPT_APP } from './config.js?v=202611210335';
 
 const app = document.getElementById('app');
 // A length of time, short: 60 → "1 min", 50 → "50 s".
