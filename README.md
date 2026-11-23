@@ -1,6 +1,6 @@
 # Intonation Practice
 
-Una práctica cronometrada de entonación con los **14 patrones** del inventario del manual (*Inventory of Intonation
+Una práctica de entonación con los **14 patrones** del inventario del manual (*Inventory of Intonation
 Patterns Having Grammatical Meanings*, Lessons 6 & 7). Son dos lecturas en voz alta, que se graban, y una parte escrita
 en la que los estudiantes escriben los números de cada patrón. Cada grabación va a tu Google Drive y a una planilla
 donde ponés la nota. La parte escrita se corrige sola.
@@ -9,12 +9,12 @@ donde ponés la nota. La parte escrita se corrige sola.
 
 | Parte | Qué hacen | Tiempo | Puntos |
 | --- | --- | --- | --- |
-| **Reading 1** | Leen en voz alta 15 oraciones; cada una muestra el nombre de su patrón | 50 s para preparar · 1 min para leer | 15 |
-| **Reading 2** | Otras 15 oraciones, con el mismo formato | 50 s para preparar · 1 min para leer | 15 |
-| **Part 3** | 10 oraciones con el nombre del patrón; escriben los números (1 bajo, 2 normal, 3 alto, 4 extra alto) | 5 min (pueden enviar antes) | 10 |
+| **Reading 1** | Leen en voz alta 15 oraciones; cada una muestra el nombre de su patrón | Sin límite: preparan y graban con *Start* y *Stop recording* | 15 |
+| **Reading 2** | Otras 15 oraciones, con el mismo formato | Sin límite, igual que la Reading 1 | 15 |
+| **Part 3** | 10 oraciones con el nombre del patrón; escriben los números (1 bajo, 2 normal, 3 alto, 4 extra alto) | Sin límite: terminan con *Send my answers* | 10 |
 
-En total son **40 puntos** y unos 9 minutos. Las consignas se oyen (voz del navegador) y se leen en pantalla. Las
-oraciones aparecen cuando empieza el reloj de preparación.
+En total son **40 puntos**, y suele tomar unos 12 minutos. Las consignas se oyen (voz del navegador) y se leen en
+pantalla. Las oraciones aparecen después de las consignas de cada lectura.
 
 - **Los 14 patrones en cada lectura, más uno.** La Reading 1 tiene dos clases de *nonfinal intonation* (*distantly
   connected* y *suspense*). La Reading 2 tiene una oración con dos patrones juntos (*Command + direct address*).
@@ -28,10 +28,14 @@ oraciones aparecen cuando empieza el reloj de preparación.
   no está en este repositorio.
 - **La Part 3 acepta las respuestas escritas de varias formas.** No importan los espacios ni el tipo de guion, y entre
   grupos de palabras vale una barra, una coma o una barra vertical. Cuando el manual da dos fórmulas, se aceptan las dos.
-- **El reloj** es un anillo que se vacía. Es verde azulado mientras preparan o escriben y rojo mientras graba. Se pone
+- **Sin reloj.** El reloj está apagado (`CLOCK = false` en [`js/format.js`](js/format.js)). Cada estudiante prepara lo
+  que necesite, toca **Start recording** (suena un pitido y empieza a grabar) y **Stop recording** al terminar. Si se le
+  olvida, la grabación se corta sola a los 5 minutos. La Part 3 termina cuando toca **Send my answers**.
+- **Con `CLOCK = true` vuelve el reloj**: 50 s para preparar, 1 min para leer y 5 min para la Part 3, y cada paso avanza
+  solo. El reloj es un anillo que se vacía. Es verde azulado mientras preparan o escriben y rojo mientras graba. Se pone
   ámbar en los últimos 10 segundos, y en los últimos 5 se pone rojo y parpadea.
-- **El micrófono** se pide una vez, en la prueba antes de empezar. Después graba solo durante cada minuto de lectura y
-  se cierra al terminar la Reading 2.
+- **El micrófono** se pide una vez, en la prueba antes de empezar. Después graba solo durante cada lectura y se cierra
+  al terminar la Reading 2.
 - **No se pierde nada.** Cada grabación y las respuestas se guardan en el navegador y se envían enseguida. Si se corta
   internet, se reintenta el envío. Al final el estudiante ve “✓ Sent” en cada parte.
 - **Si se recarga la página**, la práctica sigue desde la lectura que estaba grabando, o desde la Part 3. La planilla lo
@@ -83,8 +87,9 @@ Los audios quedan en *Intonation Practice — Recordings / grupo / nombre · có
 
 ## Cambiar la práctica
 
-Las oraciones, los nombres de los patrones y los relojes están en [`js/format.js`](js/format.js). Las consignas cambian
-solas con los relojes; por ejemplo, el tiempo de preparación es `PREP` (en segundos). Los números de cada oración están
+Las oraciones, los nombres de los patrones y los relojes están en [`js/format.js`](js/format.js). El reloj se prende
+con `CLOCK = true` y se apaga con `CLOCK = false`. Las consignas cambian solas con el reloj y sus tiempos; por ejemplo,
+el tiempo de preparación es `PREP` (en segundos). Los números de cada oración están
 en un archivo privado (`key/key.mjs`) que nunca se sube al repositorio. Después de cambiar algo:
 
 ```bash
@@ -104,7 +109,8 @@ En uno o dos minutos queda en `https://royespnz-jpg.github.io/<nombre-del-reposi
 ## Probarlo
 
 ```bash
-npm start     # http://localhost:8080 ( …/?demo=1 prueba con los relojes reales; …/?quick=1 los acorta al 10 %)
+npm start     # http://localhost:8080 ( …/?demo=1 la práctica completa, marcada demo; con el reloj prendido,
+              #   …/?quick=1 acorta los relojes al 10 %)
 npm test
 ```
 

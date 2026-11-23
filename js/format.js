@@ -1,8 +1,9 @@
 // The intonation practice: two readings aloud and a written part.
 //
 //   Reading 1 and Reading 2   15 separate sentences each, every one with the
-//                             name of its intonation pattern. 50 seconds to
-//                             prepare, then the microphone records for 1 minute.
+//                             name of its intonation pattern. The student
+//                             prepares, then records the reading (with the
+//                             clock on: 50 seconds, then 1 minute; see CLOCK).
 //   Part 3                    10 sentences with the name of their pattern: the
 //                             students write the pattern with pitch numbers
 //                             (1 low, 2 normal, 3 high, 4 extra-high).
@@ -21,9 +22,18 @@
 // are public, and Part 3 asks for them. They are only in the teacher's Apps
 // Script, made from a private file that is not in the repository.
 
+// The clock. Off (false): nothing is timed. The students prepare as long as
+// they need, start and stop each recording themselves, and send Part 3 when
+// they finish. On (true): the clocks below run every step by themselves.
+export const CLOCK = false;
+
 export const PREP = 50;
 export const RESPONSE = 60;
 export const WRITE = 300;
+
+// Without the clock, a recording the student forgets to stop ends by itself
+// after this long: several times what reading fifteen sentences takes.
+export const MAX_RECORDING = 300;
 
 // How a length of time is said: 60 → "one minute", 50 → "50 seconds", 300 → "5 minutes".
 export const duration = (s) => (s % 60 ? `${s} seconds` : s === 60 ? 'one minute' : `${s / 60} minutes`);
@@ -144,23 +154,33 @@ export const READING_POINTS = READINGS.map((r) => r.sentences.length);
 export const WRITTEN_POINTS = WRITTEN.length;
 export const TOTAL_POINTS = READING_POINTS.reduce((a, b) => a + b, 0) + WRITTEN_POINTS;
 
-export const INTRO =
+// The directions say the clocks when the clock is on, and the buttons when it is off.
+export const intro = (clock = CLOCK) =>
   'This is the intonation practice. It has three parts. In Readings 1 and 2, you will read aloud fifteen sentences; ' +
   'next to each sentence you will see the name of its intonation pattern. ' +
-  `For each reading you will have ${duration(PREP)} to prepare and ${duration(RESPONSE)} to read the sentences aloud. ` +
+  (clock
+    ? `For each reading you will have ${duration(PREP)} to prepare and ${duration(RESPONSE)} to read the sentences aloud. `
+    : 'For each reading, take the time you need to prepare. When you are ready, press Start recording and read the sentences aloud; ' +
+      'when you finish, press Stop recording. ') +
   'In Part 3, you will write the intonation pattern of ten sentences with pitch numbers. ' +
-  'The practice runs by itself. Your microphone turns on when it is time to read and turns off when the time is up. You cannot pause or go back.';
+  (clock
+    ? 'The practice runs by itself. Your microphone turns on when it is time to read and turns off when the time is up. You cannot pause or go back.'
+    : 'There is no clock: you go on when you are ready. You cannot go back to a part you have finished.');
+export const INTRO = intro();
 
-export const directions = () =>
+export const directions = (_reading, clock = CLOCK) =>
   'In this part, you will read aloud the sentences on the screen. Say each sentence with the intonation pattern written next to it. ' +
   'When part of a sentence is in bold, those words carry the pattern. ' +
-  `You will have ${duration(PREP)} to prepare. Then you will have ${duration(RESPONSE)} to read the sentences aloud.`;
+  (clock
+    ? `You will have ${duration(PREP)} to prepare. Then you will have ${duration(RESPONSE)} to read the sentences aloud.`
+    : 'Take the time you need to prepare. When you are ready, press Start recording and read the sentences aloud. When you finish, press Stop recording.');
 
-export const WRITTEN_DIRECTIONS =
+export const writtenDirections = (clock = CLOCK) =>
   'In this part, you will write the intonation pattern of each sentence with pitch numbers: 1 is low, 2 is normal, 3 is high, and 4 is extra-high. ' +
   'Put a hyphen between the numbers, and a slash between thought groups. ' +
   'When part of a sentence is in bold, write the pattern of the words in bold; otherwise, write the pattern of the whole sentence. ' +
-  `You will have ${duration(WRITE)}. You can send your answers before the time is up.`;
+  (clock ? `You will have ${duration(WRITE)}. You can send your answers before the time is up.` : 'When you finish, press Send my answers.');
+export const WRITTEN_DIRECTIONS = writtenDirections();
 
 // The recorded answers, in order.
 export const RESPONSES = READINGS.map((r) => ({ id: r.id, label: `Reading ${r.n}`, short: String(r.n), title: r.title }));
@@ -168,26 +188,28 @@ export const RESPONSES = READINGS.map((r) => ({ id: r.id, label: `Reading ${r.n}
 // Every step of the practice, in order. `scale` shortens the clocks (quick tests of the page).
 //   intro     – general directions, spoken
 //   part      – the directions of a part, spoken (the sentences are not shown yet)
-//   prep      – preparation time on the clock; the sentences appear
-//   response  – the microphone records for `seconds`
-//   write     – Part 3: the sentences, a box for each pattern, and the clock
-export function buildTimeline({ scale = 1 } = {}) {
-  const t = (s) => Math.max(3, Math.round(s * scale));
-  const steps = [{ type: 'intro', say: INTRO }];
+//   prep      – the sentences appear: preparation time on the clock, or until Start recording
+//   response  – the microphone records for `seconds`, or until Stop recording
+//   write     – Part 3: the sentences, a box for each pattern, and the clock (if it is on)
+// Without the clock the steps have no `seconds`.
+export function buildTimeline({ scale = 1, clock = CLOCK } = {}) {
+  const t = (s) => (clock ? { seconds: Math.max(3, Math.round(s * scale)) } : {});
+  const steps = [{ type: 'intro', say: intro(clock) }];
   for (const r of READINGS) {
-    steps.push({ type: 'part', reading: r.id, say: `Reading ${r.n}. ${directions(r)}` });
-    steps.push({ type: 'prep', reading: r.id, seconds: t(PREP), say: 'Begin preparing now.' });
+    steps.push({ type: 'part', reading: r.id, say: `Reading ${r.n}. ${directions(r, clock)}` });
+    steps.push({ type: 'prep', reading: r.id, ...t(PREP), say: 'Begin preparing now.' });
     steps.push({
       type: 'response',
       reading: r.id,
       id: r.id,
-      seconds: t(RESPONSE),
-      say: 'Begin reading aloud now.',
+      ...t(RESPONSE),
+      // Without the clock the student starts the recording: the beep is the cue.
+      say: clock ? 'Begin reading aloud now.' : '',
       prompt: r.sentences.map((s, i) => `${i + 1}. ${caps(s.text)} (${s.label})`).join(' '),
     });
   }
-  steps.push({ type: 'part', part: 'written', say: `Part 3. Write the patterns. ${WRITTEN_DIRECTIONS}` });
-  steps.push({ type: 'write', part: 'written', seconds: t(WRITE), say: 'Begin writing now.' });
+  steps.push({ type: 'part', part: 'written', say: `Part 3. Write the patterns. ${writtenDirections(clock)}` });
+  steps.push({ type: 'write', part: 'written', ...t(WRITE), say: 'Begin writing now.' });
   return steps;
 }
 
@@ -195,6 +217,10 @@ export function buildTimeline({ scale = 1 } = {}) {
 export function timedSeconds(steps) {
   return steps.reduce((n, s) => n + (s.seconds || 0), 0);
 }
+
+// About how many minutes the whole practice takes, directions included (with
+// the clock off, about what its clocks would give).
+export const aboutMinutes = (steps = buildTimeline({ clock: true })) => Math.round(timedSeconds(steps) / 60) + 3;
 
 // After a reload: start again from the reading that was interrupted, or from
 // Part 3 once both readings are recorded.

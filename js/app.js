@@ -1,17 +1,17 @@
-import { READINGS, WRITTEN, RESPONSES, INTRO, WRITTEN_DIRECTIONS, READING_POINTS, WRITTEN_POINTS, TOTAL_POINTS, PREP, RESPONSE, WRITE, duration, directions, buildTimeline, timedSeconds, resumeIndex } from './format.js?v=202611210335';
-import { clockHtml, runClock, idleClock, fmt } from './clock.js?v=202611210335';
-import { unlockAudio, beep, speak, stopSpeaking, openMicrophone, closeMicrophone, levelMeter, startRecording } from './audio.js?v=202611210335';
-import { scriptUrl, saveScriptUrl, isScriptUrl, ping, post, report, enqueue, onUpload, pendingUploads, resumeUploads } from './api.js?v=202611210335';
-import { saveRecording, allRecordings } from './store.js?v=202611210335';
-import { TEACHER_CODE, SCRIPT_VERSION, SCRIPT_APP } from './config.js?v=202611210335';
+import { READINGS, WRITTEN, RESPONSES, INTRO, WRITTEN_DIRECTIONS, READING_POINTS, WRITTEN_POINTS, TOTAL_POINTS, CLOCK, PREP, RESPONSE, WRITE, MAX_RECORDING, duration, directions, buildTimeline, aboutMinutes, resumeIndex } from './format.js?v=202611231617';
+import { clockHtml, runClock, idleClock, fmt } from './clock.js?v=202611231617';
+import { unlockAudio, beep, speak, stopSpeaking, openMicrophone, closeMicrophone, levelMeter, startRecording } from './audio.js?v=202611231617';
+import { scriptUrl, saveScriptUrl, isScriptUrl, ping, post, report, enqueue, onUpload, pendingUploads, resumeUploads } from './api.js?v=202611231617';
+import { saveRecording, allRecordings } from './store.js?v=202611231617';
+import { TEACHER_CODE, SCRIPT_VERSION, SCRIPT_APP } from './config.js?v=202611231617';
 
 const app = document.getElementById('app');
 // A length of time, short: 60 → "1 min", 50 → "50 s".
 const short = (s) => (s % 60 ? `${s} s` : `${s / 60} min`);
 const params = new URLSearchParams(location.search);
-// ?demo=1: the teacher's try-out, with the real clocks; the sheet marks it "demo".
+// ?demo=1: the teacher's try-out, like a student's; the sheet marks it "demo".
 const DEMO = params.has('demo');
-// ?quick=1 shortens every clock to 10 % (for testing the page only).
+// ?quick=1 shortens every clock to 10 %, when the clock is on (for testing the page only).
 const SCALE = params.has('quick') ? 0.1 : 1;
 const SESSION = 'into.session';
 const NAME = 'Intonation Practice';
@@ -64,13 +64,14 @@ function renderStart(error = '') {
       <p class="eyebrow">${NAME}${DEMO ? ' · <b>demo</b>' : ''}</p>
       <h1>Let your voice rise and fall.</h1>
       <p class="lede">Two readings of fifteen sentences, each with the name of its intonation pattern, and a written part.
-        A clock counts down the time to prepare; when it reaches zero you hear a beep, your microphone turns on, and it
-        records while you read aloud.</p>
+        ${CLOCK
+          ? 'A clock counts down the time to prepare; when it reaches zero you hear a beep, your microphone turns on, and it records while you read aloud.'
+          : 'There is no clock: prepare as long as you need, then press <b>Start recording</b>, wait for the beep and read aloud.'}</p>
       <ol class="parts-overview">
         ${READINGS.map((r) => `<li><span class="po-label">Reading ${r.n}</span><span class="po-title">${r.sentences.length} sentences, read aloud</span>
-          <span class="po-time">${short(PREP)} to prepare · ${short(RESPONSE)} to read</span></li>`).join('')}
+          <span class="po-time">${CLOCK ? `${short(PREP)} to prepare · ${short(RESPONSE)} to read` : 'No time limit'}</span></li>`).join('')}
         <li><span class="po-label">Part 3</span><span class="po-title">Write the patterns of ${WRITTEN.length} sentences</span>
-          <span class="po-time">${short(WRITE)} to write</span></li>
+          <span class="po-time">${CLOCK ? `${short(WRITE)} to write` : 'No time limit'}</span></li>
       </ol>
       <p class="po-points">${TOTAL_POINTS} points: a point for each sentence read with its pattern, and for each pattern written right.</p>
     </section>
@@ -125,7 +126,7 @@ function showLevel(el, level) {
 }
 
 function renderCheck(resuming = false) {
-  const total = timedSeconds(S.steps);
+  const minutes = CLOCK ? aboutMinutes(S.steps) : aboutMinutes();
   app.innerHTML = `<main class="screen check">
     <header class="check-head">
       <p class="eyebrow">${who()}</p>
@@ -133,7 +134,7 @@ function renderCheck(resuming = false) {
       <p class="lede">${
         resuming
           ? 'Your practice was interrupted. It will continue from the part you were doing.'
-          : `About ${Math.round(total / 60) + 3} minutes. Use headphones if you can, in a quiet place.`
+          : `About ${minutes} minutes. Use headphones if you can, in a quiet place.`
       }</p>
     </header>
     <div class="check-grid">
@@ -157,10 +158,16 @@ function renderCheck(resuming = false) {
       <section class="card check-step rules">
         <span class="step-num">3</span>
         <h2>Once you start</h2>
-        <ul>
-          <li>The practice runs by itself. You can’t pause it or go back.</li>
+        <ul>${
+          CLOCK
+            ? `<li>The practice runs by itself. You can’t pause it or go back.</li>
           <li>The sentences appear when the <b>Preparation time</b> starts: read them silently.</li>
-          <li>When the clock says <b>Reading time</b>, the microphone is recording: read aloud with the pattern of each sentence.</li>
+          <li>When the clock says <b>Reading time</b>, the microphone is recording: read aloud with the pattern of each sentence.</li>`
+            : `<li>There is no clock: take the time you need. You can’t go back to a part you have finished.</li>
+          <li>The sentences appear after the directions of each reading: read them silently and prepare.</li>
+          <li>When you are ready, press <b>Start recording</b>. After the beep, read aloud with the pattern of each sentence,
+            then press <b>Stop recording</b>.</li>`
+        }
           <li>Stay on this page until the end, when your recordings and answers are sent.</li>
         </ul>
       </section>
@@ -246,16 +253,55 @@ function examShell() {
     </header>
     <main class="stage-main">
       <section class="task" data-task aria-live="polite"></section>
-      <aside class="clock-panel">
-        ${clockHtml()}
+      <aside class="clock-panel${CLOCK ? '' : ' no-clock'}">
+        ${CLOCK ? clockHtml() : ''}
         <div class="rec" data-rec hidden><span class="rec-dot"></span><b>Recording</b>${meterHtml()}</div>
         <p class="cue" data-cue aria-live="assertive"></p>
+        ${CLOCK ? '' : recButtons()}
         <button type="button" class="btn primary" data-send-answers hidden>Send my answers</button>
       </aside>
     </main>
   </div>`;
   S.done.forEach((id) => app.querySelector(`[data-q="${id}"]`)?.classList.add('done'));
   if (S.answers) app.querySelector('[data-q="p3"]')?.classList.add('done');
+}
+
+// Without the clock, the student starts and stops each recording.
+function recButtons(preview = '') {
+  return `<button type="button" class="btn primary" data-start-rec ${preview === 'prep' ? 'disabled' : 'hidden'}><span class="btn-icon" aria-hidden="true"></span>Start recording</button>
+        <button type="button" class="btn primary" data-stop-rec ${preview === 'response' ? 'disabled' : 'hidden'}><span class="btn-icon btn-icon-stop" aria-hidden="true"></span>Stop recording</button>`;
+}
+
+// Shows a button and resolves on its click. `wait` (ms) keeps it disabled at
+// first, so a double click on the button before it can't press it by mistake.
+function press(button, wait = 0) {
+  button.hidden = false;
+  button.disabled = wait > 0;
+  const ready = setTimeout(() => (button.disabled = false), wait);
+  let off;
+  const done = new Promise((resolve) => {
+    off = () => {
+      clearTimeout(ready);
+      button.removeEventListener('click', off);
+      button.hidden = true;
+      resolve();
+    };
+    button.addEventListener('click', off);
+  });
+  return { done, off };
+}
+
+// Until Stop recording; true if instead the recording ran to MAX_RECORDING.
+async function stopPressed(button) {
+  const p = press(button, 3000);
+  let cap = 0;
+  const capped = await Promise.race([
+    p.done.then(() => false),
+    new Promise((resolve) => (cap = setTimeout(() => resolve(true), MAX_RECORDING * 1000))),
+  ]);
+  clearTimeout(cap);
+  p.off();
+  return capped;
 }
 
 // The sentences of a reading, each with the name of its pattern.
@@ -304,7 +350,7 @@ function setCue(text, kind = '') {
 
 const readAnswers = () => WRITTEN.map((_, i) => String(app.querySelector(`[name="a${i + 1}"]`)?.value || '').trim().slice(0, 30));
 
-// Part 3: the clock runs until the time is up or the student sends the answers.
+// Part 3: until the student sends the answers, or the time is up if the clock is on.
 async function writePart(step, clock) {
   const button = app.querySelector('[data-send-answers]');
   const form = app.querySelector('[data-written]');
@@ -314,10 +360,10 @@ async function writePart(step, clock) {
   });
   app.querySelector('[name="a1"]')?.focus();
   button.hidden = false;
-  const timer = runClock(clock, step.seconds, { mode: 'prep', phase: 'Writing time', sub: 'Write' });
+  const timer = CLOCK ? runClock(clock, step.seconds, { mode: 'prep', phase: 'Writing time', sub: 'Write' }) : null;
   const sent = new Promise((resolve) => button.addEventListener('click', resolve, { once: true }));
-  await Promise.race([timer.done, sent]);
-  timer.stop();
+  await (timer ? Promise.race([timer.done, sent]) : sent);
+  timer?.stop();
   button.hidden = true;
   S.answers = readAnswers();
   S.draft = S.answers;
@@ -366,7 +412,8 @@ async function runExam() {
   running = true;
   examShell();
   keepAwake();
-  const clock = app.querySelector('.clock');
+  const clock = app.querySelector('.clock'); // none when the clock is off
+  const idle = (opts) => clock && idleClock(clock, opts);
   const recEl = app.querySelector('[data-rec]');
   if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, group: S.group, demo: DEMO || SCALE < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
 
@@ -389,30 +436,35 @@ async function runExam() {
     app.querySelector('[data-progress-label]').textContent = partLabel(part);
 
     if (step.type === 'intro' || step.type === 'part') {
-      idleClock(clock, { phase: 'Listen', time: '··', sub: 'Directions' });
+      idle({ phase: 'Listen', time: '··', sub: 'Directions' });
       setCue('Listen to the directions.');
       await speak(step.say);
     } else if (step.type === 'prep') {
-      idleClock(clock, { phase: 'Preparation time', time: fmt(step.seconds) });
+      idle({ phase: 'Preparation time', time: fmt(step.seconds) });
       setCue(step.say);
       await speak(step.say);
       show(taskHtml(step));
       setCue('Read the sentences silently and prepare.', 'prep');
-      await runClock(clock, step.seconds, { mode: 'prep', phase: 'Preparation time', sub: 'Prepare' }).done;
+      if (CLOCK) await runClock(clock, step.seconds, { mode: 'prep', phase: 'Preparation time', sub: 'Prepare' }).done;
+      else await press(app.querySelector('[data-start-rec]')).done;
     } else if (step.type === 'response') {
-      idleClock(clock, { phase: 'Reading time', time: fmt(step.seconds) });
-      setCue(step.say);
-      await speak(step.say);
+      idle({ phase: 'Reading time', time: fmt(step.seconds) });
+      if (step.say) {
+        setCue(step.say);
+        await speak(step.say);
+      }
       await beep();
       const rec = startRecording();
       recEl.hidden = false;
       const stop = levelMeter((l) => showLevel(recEl, l));
       setCue('Read aloud now: the microphone is recording.', 'live');
-      await runClock(clock, step.seconds, { mode: 'response', phase: 'Reading time', sub: 'Recording' }).done;
+      let capped = false;
+      if (CLOCK) await runClock(clock, step.seconds, { mode: 'response', phase: 'Reading time', sub: 'Recording' }).done;
+      else capped = await stopPressed(app.querySelector('[data-stop-rec]'));
       const { blob, seconds } = await rec.stop();
       stop();
       recEl.hidden = true;
-      setCue('Time is up.', 'done');
+      setCue(CLOCK ? 'Time is up.' : capped ? `The recording stopped after ${duration(MAX_RECORDING)}.` : 'Recording saved.', 'done');
       const meta = RESPONSES.find((r) => r.id === step.id);
       const saved = {
         key: `${S.attempt}:${step.id}`,
@@ -436,7 +488,7 @@ async function runExam() {
       // The microphone is not needed for Part 3.
       if (!S.steps.slice(i + 1).some((s) => s.type === 'response')) closeMicrophone();
     } else if (step.type === 'write') {
-      idleClock(clock, { phase: 'Writing time', time: fmt(step.seconds) });
+      idle({ phase: 'Writing time', time: fmt(step.seconds) });
       setCue(step.say);
       await speak(step.say);
       show(taskHtml(step));
@@ -528,7 +580,7 @@ function renderTeacher(message = '') {
   const url = scriptUrl();
   const base = `${location.origin}${location.pathname}`;
   const link = (extra = '') => `${base}?${url ? `s=${encodeURIComponent(url)}&` : ''}${extra}`.replace(/[?&]$/, '');
-  const minutes = Math.round(timedSeconds(buildTimeline()) / 60) + 3;
+  const minutes = aboutMinutes();
   app.innerHTML = `<main class="screen teacher">
     <div class="teacher-head"><div><p class="eyebrow">Teacher</p>
     <h1>Set up the practice</h1></div><button type="button" class="btn ghost small" data-lock>Lock and leave</button></div>
@@ -543,6 +595,8 @@ function renderTeacher(message = '') {
     <section class="card">
       <h2>2 · The link for your students</h2>
       <p>It carries your script, so the recordings and answers go to your sheet. Students write their full name and start.</p>
+      ${CLOCK ? '' : `<p class="muted small">The clock is off: students prepare as long as they need, start and stop each recording
+        themselves (one they forget to stop ends after ${duration(MAX_RECORDING)}) and send Part 3 when they finish.</p>`}
       <label class="group-field">Group <span class="muted small">(optional: each group’s recordings get their own folder)</span>
         <input data-group maxlength="40" placeholder="e.g. 3B" spellcheck="false" autocomplete="off"></label>
       <div class="link-row"><code data-link>${esc(link())}</code><button class="btn small" data-copy="${esc(link())}">Copy</button></div>
@@ -550,7 +604,7 @@ function renderTeacher(message = '') {
     <section class="card">
       <h2>3 · Go through the practice</h2>
       <p>See every step as the students see it — the directions, the preparation and the reading of each part, and Part 3 —
-        in any order, with the clock and the voice. Nothing is recorded or sent.</p>
+        in any order, with ${CLOCK ? 'the clock and ' : ''}the voice. Nothing is recorded or sent.</p>
       <p><a class="btn primary" href="#preview">Open the preview</a></p>
     </section>
     <section class="card">
@@ -563,7 +617,7 @@ function renderTeacher(message = '') {
     </section>
     <section class="card">
       <h2>5 · Try it</h2>
-      <p>Try the whole practice with its real clocks (about ${minutes} minutes); your recordings and answers go to your
+      <p>Try the whole practice${CLOCK ? ' with its real clocks' : ''} (about ${minutes} minutes); your recordings and answers go to your
         sheet like a student’s, marked <i>demo</i>.</p>
       <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the practice</a></p>
     </section>
@@ -650,25 +704,28 @@ function renderPreview() {
     </nav>
     <main class="stage-main">
       <section class="task" data-task>${taskHtml(step, true)}</section>
-      <aside class="clock-panel">
-        ${clockHtml()}
+      <aside class="clock-panel${CLOCK ? '' : ' no-clock'}">
+        ${CLOCK ? clockHtml() : ''}
         ${step.type === 'response' ? `<div class="rec"><span class="rec-dot"></span><b>Recording</b><span class="muted small">(not in the preview)</span></div>` : ''}
         <p class="cue" data-cue></p>
+        ${CLOCK ? '' : recButtons(step.type)}
+        ${!CLOCK && step.type === 'write' ? '<button type="button" class="btn primary" disabled>Send my answers</button>' : ''}
       </aside>
     </main>
   </div>`;
-  const clock = app.querySelector('.clock');
+  const clock = app.querySelector('.clock'); // none when the clock is off
+  const idle = (opts) => clock && idleClock(clock, opts);
   if (step.type === 'prep') {
-    idleClock(clock, { phase: 'Preparation time', time: fmt(step.seconds), sub: 'Prepare' });
+    idle({ phase: 'Preparation time', time: fmt(step.seconds), sub: 'Prepare' });
     setCue('Read the sentences silently and prepare.', 'prep');
   } else if (step.type === 'response') {
-    idleClock(clock, { phase: 'Reading time', time: fmt(step.seconds), sub: 'Recording' });
+    idle({ phase: 'Reading time', time: fmt(step.seconds), sub: 'Recording' });
     setCue('Read aloud now: the microphone is recording.', 'live');
   } else if (step.type === 'write') {
-    idleClock(clock, { phase: 'Writing time', time: fmt(step.seconds), sub: 'Write' });
+    idle({ phase: 'Writing time', time: fmt(step.seconds), sub: 'Write' });
     setCue('Write the pattern of each sentence.', 'prep');
   } else {
-    idleClock(clock, { phase: 'Listen', time: '··', sub: 'Directions' });
+    idle({ phase: 'Listen', time: '··', sub: 'Directions' });
     setCue('Listen to the directions.');
   }
 }
@@ -727,7 +784,10 @@ document.addEventListener('click', async (e) => {
   else if (t.matches('[data-pv-say]')) {
     unlockAudio();
     stopSpeaking();
-    speak(PREVIEW.steps[PREVIEW.at].say);
+    const step = PREVIEW.steps[PREVIEW.at];
+    // Without the clock, a recording starts with the beep alone.
+    if (step.say) speak(step.say);
+    else if (step.type === 'response') beep();
   } else if (t.matches('[data-pv-clock]')) previewClock(t);
   else if (t.matches('[data-lock]')) {
     setUnlocked(false);

@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  READINGS, WRITTEN, PATTERNS, LABELS, RESPONSES, PREP, RESPONSE, WRITE, READING_POINTS, WRITTEN_POINTS, TOTAL_POINTS,
-  INTRO, WRITTEN_DIRECTIONS, directions, duration, buildTimeline, timedSeconds, resumeIndex, plain, bold, caps, normalize,
+  READINGS, WRITTEN, PATTERNS, LABELS, RESPONSES, CLOCK, PREP, RESPONSE, WRITE, MAX_RECORDING, READING_POINTS, WRITTEN_POINTS,
+  TOTAL_POINTS, INTRO, WRITTEN_DIRECTIONS, intro, directions, writtenDirections, duration, buildTimeline, timedSeconds,
+  aboutMinutes, resumeIndex, plain, bold, caps, normalize,
 } from '../js/format.js';
 import { fmt } from '../js/clock.js';
 import { syllablesOf } from './syllables.mjs';
@@ -14,15 +15,16 @@ const all = [...READINGS.flatMap((r) => r.sentences), ...WRITTEN];
 const PARTIAL = ['Implicit contrast', 'Nonfinal: distantly connected', 'Nonfinal: closely connected', 'Nonfinal: suspense',
   'Direct address', 'Tag question (real question)', 'Tag question (agreement expected)', 'Focus', 'Command + direct address'];
 
-test('two readings of 15 sentences, 50 seconds to prepare and one minute to read, then Part 3', () => {
+test('with the clock on: two readings of 15 sentences, 50 seconds to prepare and one minute to read, then Part 3', () => {
   assert.equal(PREP, 50);
   assert.equal(RESPONSE, 60);
   assert.equal(WRITE, 300);
-  const steps = buildTimeline();
+  const steps = buildTimeline({ clock: true });
   assert.deepEqual(steps.map((s) => `${s.type}:${s.reading || s.part || ''}:${s.seconds || ''}`), [
     'intro::', 'part:r1:', 'prep:r1:50', 'response:r1:60', 'part:r2:', 'prep:r2:50', 'response:r2:60', 'part:written:', 'write:written:300',
   ]);
   assert.equal(timedSeconds(steps), 520);
+  assert.equal(aboutMinutes(steps), 12);
   assert.deepEqual(steps.filter((s) => s.type === 'response').map((s) => s.id), RESPONSES.map((r) => r.id));
   assert.deepEqual(READINGS.map((r) => r.sentences.length), [15, 15]);
   assert.equal(WRITTEN.length, 10);
@@ -32,18 +34,46 @@ test('two readings of 15 sentences, 50 seconds to prepare and one minute to read
   assert.equal(TOTAL_POINTS, 40);
 });
 
-test('the directions say the same clocks', () => {
-  assert.match(INTRO, /For each reading you will have 50 seconds to prepare and one minute to read the sentences aloud\./);
-  assert.match(directions(READINGS[0]), /You will have 50 seconds to prepare\. Then you will have one minute to read the sentences aloud\.$/);
-  assert.match(WRITTEN_DIRECTIONS, /1 is low, 2 is normal, 3 is high, and 4 is extra-high\./);
-  assert.match(WRITTEN_DIRECTIONS, /You will have 5 minutes\./);
+test('with the clock on, the directions say the same clocks', () => {
+  assert.match(intro(true), /For each reading you will have 50 seconds to prepare and one minute to read the sentences aloud\./);
+  assert.match(directions(READINGS[0], true), /You will have 50 seconds to prepare\. Then you will have one minute to read the sentences aloud\.$/);
+  assert.match(writtenDirections(true), /1 is low, 2 is normal, 3 is high, and 4 is extra-high\./);
+  assert.match(writtenDirections(true), /You will have 5 minutes\./);
   assert.deepEqual([60, 50, 300].map(duration), ['one minute', '50 seconds', '5 minutes']);
-  const steps = buildTimeline();
+  const steps = buildTimeline({ clock: true });
+  assert.equal(steps[0].say, intro(true));
   assert.equal(steps[2].say, 'Begin preparing now.');
   assert.equal(steps[3].say, 'Begin reading aloud now.');
   assert.equal(steps.at(-1).say, 'Begin writing now.');
   // The sheet keeps the sentences, numbered, with their patterns.
   assert.match(steps[3].prompt, /^1\. The train leaves at noon\. \(Statement\) 2\. Did you finish the report\? \(Yes-no question\) /);
+});
+
+test('the clock is off: no step is timed, and the directions say the buttons instead', () => {
+  assert.equal(CLOCK, false);
+  const steps = buildTimeline();
+  assert.deepEqual(steps.map((s) => s.type), ['intro', 'part', 'prep', 'response', 'part', 'prep', 'response', 'part', 'write']);
+  assert.ok(steps.every((s) => !('seconds' in s)), 'no step has seconds');
+  assert.equal(timedSeconds(steps), 0);
+  // About as long as with the clocks, directions included.
+  assert.equal(aboutMinutes(), 12);
+  // The student starts the recording, so no voice says when: the beep does.
+  assert.deepEqual(steps.filter((s) => s.type === 'response').map((s) => s.say), ['', '']);
+  assert.equal(steps[2].say, 'Begin preparing now.');
+  assert.equal(steps.at(-1).say, 'Begin writing now.');
+  assert.match(steps[3].prompt, /^1\. The train leaves at noon\. \(Statement\) /);
+  // The defaults follow the switch.
+  assert.equal(INTRO, intro(false));
+  assert.equal(WRITTEN_DIRECTIONS, writtenDirections(false));
+  assert.equal(steps[0].say, INTRO);
+  assert.match(INTRO, /take the time you need to prepare\. When you are ready, press Start recording and read the sentences aloud; when you finish, press Stop recording\./);
+  assert.match(directions(READINGS[0]), /When you are ready, press Start recording and read the sentences aloud\. When you finish, press Stop recording\.$/);
+  assert.match(WRITTEN_DIRECTIONS, /1 is low, 2 is normal, 3 is high, and 4 is extra-high\..* When you finish, press Send my answers\.$/);
+  // Nothing about time limits is said.
+  for (const s of steps) assert.doesNotMatch(s.say, /\d+ seconds|minutes?\b|time is up|runs by itself/i, s.say);
+  // A recording nobody stops ends by itself, long after the reading.
+  assert.ok(MAX_RECORDING >= 4 * RESPONSE);
+  assert.equal(duration(MAX_RECORDING), '5 minutes');
 });
 
 test('every reading has the 14 patterns of the manual’s inventory, plus one more', () => {
@@ -132,8 +162,8 @@ test('after a reload: back to the interrupted reading, or on to Part 3', () => {
 });
 
 test('the quick demo shortens every clock but keeps at least 3 seconds', () => {
-  assert.deepEqual(buildTimeline({ scale: 0.1 }).filter((s) => s.seconds).map((s) => s.seconds), [5, 6, 5, 6, 30]);
-  assert.ok(buildTimeline({ scale: 0.001 }).filter((s) => s.seconds).every((s) => s.seconds === 3));
+  assert.deepEqual(buildTimeline({ scale: 0.1, clock: true }).filter((s) => s.seconds).map((s) => s.seconds), [5, 6, 5, 6, 30]);
+  assert.ok(buildTimeline({ scale: 0.001, clock: true }).filter((s) => s.seconds).every((s) => s.seconds === 3));
 });
 
 test('helpers: plain text, words in bold, capitals', () => {
